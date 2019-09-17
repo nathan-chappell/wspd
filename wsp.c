@@ -8,6 +8,7 @@
 /*** Main ***/
 /************/
 
+std::ofstream output_file;
 
 int main(int argc, char *argv[]){
   int rows{-1}; // counting rows, must be less than num to start
@@ -46,6 +47,8 @@ int main(int argc, char *argv[]){
   if (argc == 3) // read from the file 
   {
     file_name = argv[1];
+    //output_file.open(file_name + ".output.txt");
+    output_file.open("wsp_out.txt");
     sep_const = atof(argv[2]);
     // read file to pts data structure
 

@@ -5,44 +5,23 @@ import numpy as np
 from matplotlib import pyplot as plt
 from sklearn.decomposition import PCA
 from itertools import product
+from threading import Lock
+from concurrent.futures import ThreadPoolExecutor
 import os
 import json
 
+#{{{ Globals
 
-
-def print_status(i,n):
-  end = ''
-  if i == n-1: end='\n'
-  print('\r%8d : %d'%(i+1,n),end=end)
-
-# get separation given centers and radii
-def get_sep(lc,lr,rc,rr):
-  # loop
-  d = np.linalg.norm(lc - rc)
-  r = max(lr,rr)
-  # possibly an error condition...
-  if r == 0: 
-    #print('r == 0')
-    return 0
-  d = max(0,d - 2*r)
-  #if d == 0:
-    #print('d == 0')
-  return d/r
+# how many threads to run
+max_workers = 8
 
 # list of dictionaries holding results of the experiments
 results = []
 
-def record_result(filename, shape, target_sep, dumbells, actual_seps):
-  results.append({
-    'filename' : filename,
-    'shape' : shape,
-    'target_sep' : target_sep,
-    'dumbells' : dumbells,
-    'actual_seps' : actual_seps})
+# here are the parameters of the experiment:
+# filenames target_seps n_components
+# set dummy to True to only do a test run (one file, fewer parameters)
 
-# read data
-#filename = '../data4Domagoj/goolam-prepare-log_count.csv'
-#filename = '../data4Domagoj/biase-prepare-log_count.csv'
 filenames = [
   '../data4Domagoj/biase-prepare-log_count.csv',
   '../data4Domagoj/darmanisfilledSOUP-prepare-log_count.csv',
@@ -52,27 +31,101 @@ filenames = [
   '../data4Domagoj/fan-prepare-log_count.csv',
   '../data4Domagoj/goolam-prepare-log_count.csv']
 
-target_seps = [.5, 1, 2]
+# maybe too optimistic...
+target_seps = [.25, .5, 1, 1.5]
+
+pca_size = [5, 10, 20]
       
+# dummy runs are to test the overall setup
 dummy = True
 if dummy:
   filenames = [
     '../data4Domagoj/biase-prepare-log_count.csv',
     ]
-  target_seps = [.5,1]
+  #target_seps = [.25,.5]
+  #pca_size = [5]
 
-first = True
-for filename,target_sep in product(filenames, target_seps):
-  print('processing: ', filename, ', sep:', target_sep)
+#}}}
 
+#{{{ Routines
+def print_status(i,n):
+  print('\r%8d : %d'%(i+1,n),end='',flush=True)
+
+# runs concurrently
+def get_and_add_box(i):
+  l,r = dumbell_indices[i]
+  # loop loop loop loop
+  lbox = np.array([[min(x),max(x)] for x in data[l].T])
+  rbox = np.array([[min(x),max(x)] for x in data[r].T])
+  boxes_lock.acquire()
+  boxes[i] = [lbox,rbox]
+  print_status(len(boxes), len(dumbell_indices))
+  boxes_lock.release()
+
+# runs concurrently
+def get_and_add_hi_d_dumbell(i):
+  l,r = boxes[i]
+  # loop loop
+  lc = (l[:,0] + l[:,1])/2
+  lr = np.linalg.norm(l[:,0] - lc) 
+  # loop loop
+  rc = (r[:,0] + r[:,1])/2
+  rr = np.linalg.norm(r[:,0] - rc)
+  if lr == 0 and rr == 0:
+    sep = -1
+  else: 
+    sep = get_sep(lc,lr,rc,rr)
+  hi_d_dumbells_lock.acquire()
+  hi_d_dumbells_dict[i] = [sep,lr,rr]
+  print_status(len(hi_d_dumbells_dict),len(boxes))
+  hi_d_dumbells_lock.release()
+
+# get separation given centers and radii
+def get_sep(lc,lr,rc,rr):
+  r = max(lr,rr)
+  if r == 0: return 0
   # loop
+  #return max(0, np.linalg.norm(lc - rc)/r - 2)
+  return np.linalg.norm(lc - rc)/r - 2
+
+def info_to_dict(info):
+  return { 
+     's' : info[0],
+    'lr' : info[1],
+    'rr' : info[2]
+  }
+
+def record_result(filename, shape, target_sep, n_components,
+                  dumbell_indices, low_d_info, hi_d_info):
+  results.append({
+    'filename' : filename,
+    'shape' : shape,
+    'target_sep' : target_sep,
+    'n_components' : n_components,
+    'dumbell_indices' : dumbell_indices,
+    'low_d_info' : low_d_info,
+    'hi_d_info' : hi_d_info
+    })
+
+#}}}
+
+### Run Experiments
+for filename, target_sep, n_components in product(
+    filenames, target_seps, pca_size):
+
+  print('processing: ', filename, ', sep:', target_sep, ', n_c:', n_components)
+
+### Read Data
+#{{{
   data = np.loadtxt(filename, delimiter=',')
   print('shape:', data.shape, 'max pairs:', data.shape[0]*(data.shape[0]-1)/2)
+#}}}
 
 ### Preprocessing
-
+#{{{
 # reduce dimension
-  pca = PCA(n_components=10)
+  #pca = PCA(n_components=n_components, svd_solver='arpack')
+  pca = PCA(n_components=n_components)
   transformed_data = pca.fit_transform(data)
 
 # output transformed data
@@ -80,92 +133,65 @@ for filename,target_sep in product(filenames, target_seps):
   header = str(shape[0]) + ' ' + str(shape[1])
   pca_out = 'pca_out.np'
   np.savetxt(pca_out, transformed_data, header=header)
+#}}}
 
 ### WSPD
-
+#{{{
 # run wspd on transformed data
   os.system('./wsp ' + pca_out + ' ' + str(target_sep) 
                      + '1>/dev/null 2>/dev/null')
 
 # read wspd result
-  dumbells = []
-  info = []
+  dumbell_indices = []
+  low_d_info = []
 
-# dumbells: l1 l2 ... | r1 r2 ...
-  with open('dumbells.txt') as f:
+# dumbell_indices: s lc lr rc rr | l1 l2 ... | r1 r2 ...
+  with open('wsp_out.txt') as f:
     for line in f:
-      l,r = line.split('|')
-      dumbells.append([[int(x) for x in l.split()],[int(y) for y in r.split()]])
+      i,l,r = line.split('|')
+      low_d_info.append(info_to_dict([float(x) for x in i.split()]))
+      dumbell_indices.append([[int(x) for x in l.split()],[int(y) for y in r.split()]])
 
-# info: sep l_n r_n l_center r_center l_radius r_radius
-  with open('dumbells_s_c_r.txt') as f:
-    for line in f:
-      info.append([float(x) for x in line.split()])
-
-  print('wspd done. starting analysis')
+  print('wspd done,', len(dumbell_indices), 'pairs')
+#}}}
 
 ### Analysis
-
-# get bounding boxes
-# TODO too slow...
-# consider C++ interface / parallelization
-#   really just need min/max...
-
-#f_indices = filter((lambda x: len(x[0]) > 1 or len(x[1]) > 1), dumbells)
-
-# TODO parallelization:
-#   get_bounding_box as function
-#   iterate through dumbells...
-
+#{{{ 
   print('getting bounding boxes')
-  boxes = []
-#for l,r in f_indices:
-  for i in range(len(dumbells)):
-    l,r = dumbells[i]
-    # loop loop loop loop
-    lbox = np.array([[min(x),max(x)] for x in data[l].T])
-    rbox = np.array([[min(x),max(x)] for x in data[r].T])
-    boxes.append([lbox,rbox])
-    print_status(i,len(dumbells))
 
-  print('getting real separations')
+  boxes_lock = Lock()
+  boxes = {}
+  #with ThreadPoolExecutor(max_workers) as pool:
+    #pool.map(get_and_add_box, range(len(dumbell_indices)))
+  [get_and_add_box(i) for i in range(len(dumbell_indices))]
 
-  balls = []
-  actual_seps = []
-# need to account for single points (still good...)
-  for i in range(len(boxes)):
-    l,r = boxes[i]
-    # loop loop
-    lc = (l[:,0] + l[:,1])/2
-    lr = np.linalg.norm(l[:,0] - lc) 
-    # loop loop
-    rc = (r[:,0] + r[:,1])/2
-    rr = np.linalg.norm(r[:,0] - rc)
-    if lr == 0 and rr == 0:
-      actual_seps.append(-1)
-    else: 
-      actual_seps.append(get_sep(lc,lr,rc,rr))
-    # as of right now I don't think I want the balls
-    # balls.append((lc,lr,rc,rr))
-    print_status(i,len(boxes))
+  print('\nboxes:', len(boxes))
+  print('\ngetting hi-d separation')
 
-  record_result(filename, data.shape, target_sep, dumbells, actual_seps)
+  hi_d_dumbells_dict = {}
+  hi_d_dumbells_lock = Lock()
+  #with ThreadPoolExecutor(max_workers) as pool:
+    #pool.map(get_and_add_hi_d_dumbell, range(len(boxes)))
+  [get_and_add_hi_d_dumbell(i) for i in range(len(boxes))]
+    
+  # move the dict to a list, then each item of the list to a dict
+  hi_d_info = []
+  for i in range(len(hi_d_dumbells_dict)): 
+    hi_d_info.append(info_to_dict(hi_d_dumbells_dict[i]))
 
-#   compare old and new separations:
-#     histogram of new separations
-#     mean of new separations
-#     variance of separation change for nodes
-#     -- any patterns in relation to other data
+  print('\nrecording result')
 
-# output information:
-# (( a singleton is a dumbell of the form {{a},{b}}
-# data filename, n, d, target_sep
-#  low_d: count of dumbells, count of singletons, non-singletons, mean size
-#  (( in the high_d info, singletons are disregarded ))
-#  (( let s := target_sep, s' separation in original space ))
-# high_d: 
-#  mean(s), (mean size, count) for dumbells 
-#                   satisfying s' >= : [0, s/16, s/8, s/4, s/2, s]
-# 
+  record_result(filename, data.shape, target_sep, n_components,
+                dumbell_indices, low_d_info, hi_d_info)
 
+#}}}
+
+### End of Experiement
+
+### Output the results
+#{{{
+
+print('\noutputting results')
 with open('low_dimensions.results.json','w') as f: json.dump(results,f)
+
+#}}}

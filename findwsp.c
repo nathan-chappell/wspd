@@ -4,7 +4,10 @@
 #include "wsp.h"
 
 int FindWSP2(tree_node *tnode1, tree_node *tnode2, double s, int dim);
-int wellsep(tree_node *tnode1, tree_node *tnode2, double s, int dim, double& dist);
+int wellsep(tree_node *tnode1, tree_node *tnode2, double s, 
+            int dim, double& dist, double &actual_s);
+
+extern std::ofstream output_file;
 
 /***************/
 /*** FindWSP ***/
@@ -50,83 +53,31 @@ int dfs(tree_node *tnode, Points& pts)
 /****************/
 
 // EDIT:
-// TODO: output the information about the nodes
-//
-// idea: one file has: indices of pairs
-//       other file has: separation, radius
-
-// format: [[left indices],[right indices]]
-std::ofstream dumbell_i_file{"dumbells.txt"};
 
 void output_indices(Points &l, Points &r) {
-  for (auto p : l) dumbell_i_file << p->index << " ";
-  dumbell_i_file << " | ";
-  for (auto p : r) dumbell_i_file << p->index << " ";
-  dumbell_i_file << "\n";
+  for (auto p : l) output_file << p->index << " ";
+  output_file << " | ";
+  for (auto p : r) output_file << p->index << " ";
+  output_file << "\n";
 }
 
-// format: sep l_n, r_n, l_c, r_c, l_r, r_r
-std::ofstream dumbell_s_c_r_file{"dumbells_s_c_r.txt"};
-
-//TODO: make sure we don't deref a nullptr
 void output_info(double sep, tree_node *l, tree_node *r) {
-  dumbell_s_c_r_file << sep << " "
-            //<< l->nr_pt << " "
-            //<< r->nr_pt << " "
-            << *l->center << " "
-            << *r->center << " "
+  output_file << sep << " "
+            //<< *l->center << " "
             << l->radius << " "
-            << r->radius << "\n";
+            //<< *r->center << " "
+            << r->radius << " | ";
 }
 
-int FindWSP2(tree_node *tnode1, tree_node *tnode2, double s, int dim){
-
-  /*   printf("calling FindWSP2!\n"); */
-  double distance;
-  if (wellsep(tnode1, tnode2, s, dim, distance)) {
-	  // file format:
-	  // tnode1->nr_pt,tnode2->nr_pt,tnode1->center,tnode2->center,tnode1->radius,tnode2->radius
-	  //
+int FindWSP2(tree_node *tnode1, tree_node *tnode2, double s, int dim) {
+  double distance, actual_s;
+  if (wellsep(tnode1, tnode2, s, dim, distance, actual_s)) {
     // EDIT:
 	  Points tnode1_pts, tnode2_pts;
 	  dfs(tnode1, tnode1_pts);
 	  dfs(tnode2, tnode2_pts);
+    output_info(actual_s,tnode1,tnode2);
     output_indices(tnode1_pts,tnode2_pts);
-    output_info(s,tnode1,tnode2);
-
-    /*
-	  vector<double*> tnode1_pts, tnode2_pts;
-	  dfs(tnode1, tnode1_pts);
-	  dfs(tnode2, tnode2_pts);
-
-	  assert(tnode1_pts.size() == tnode1->nr_pt);
-	  assert(tnode2_pts.size() == tnode2->nr_pt);
-
-	  std::ofstream outfile;
-	  outfile.open("wsp.out", std::ios_base::app);
-	  outfile<< tnode1->nr_pt << "," << tnode2->nr_pt << "," << distance << ",";
-	  for (int j=0;j<tnode1->nr_pt; j++)
-		  for (int i=0;i<dim;i++)
-        	          outfile << tnode1_pts[j][i] << ",";
-          for (int j=0;j<tnode2->nr_pt; j++)
-	        for (int i=0;i<dim;i++)
-		{
-        		outfile << tnode2_pts[j][i] ;
-                        if (i<(dim-1))
-                                outfile << ",";
-		}
-
-	  outfile << endl;
-    */
-	 /* outfile<< tnode1->nr_pt << "," << tnode2->nr_pt << ",";
-	  for (int i=0;i<dim;i++)
-		  outfile << tnode1->center[i] <<",";
-	  for (int i=0;i<dim;i++)
-		outfile << tnode2->center[i] << ",";
-	  outfile << tnode1->radius << ",";
-	  outfile << tnode2->radius << endl;
-	  */
-	  //outfile.close();
 	  return (1);
   }
   else {
@@ -143,7 +94,8 @@ int FindWSP2(tree_node *tnode1, tree_node *tnode2, double s, int dim){
 /*** wellsep ***/
 /***************/
 
-int wellsep(tree_node *tnode1, tree_node *tnode2, double s, int dim, double& dist){
+int wellsep(tree_node *tnode1, tree_node *tnode2, double s, 
+            int dim, double& dist, double &actual_s){
   int i;
   double radius, distance;
 
@@ -157,6 +109,7 @@ int wellsep(tree_node *tnode1, tree_node *tnode2, double s, int dim, double& dis
 
   dist = distance = sqrt(distance);
   distance = distance - 2*radius;
+  actual_s = radius == 0 ? -1 : distance / radius;
 
   if (distance > s*radius)
     return (1);
