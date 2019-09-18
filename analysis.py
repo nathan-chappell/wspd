@@ -43,8 +43,8 @@ for result in results:
   hi_d = get_np_for_dumbells(result['hi_d_info'])
   num_dumbells = len(low_d)
   #plt.subplot(rows,columns,get_subplt_index(target_sep,n_components))
-  plt.scatter(np.arange(num_dumbells), low_d[:,0],c=(0,0,1,.8))
-  plt.scatter(np.arange(num_dumbells), hi_d[:,0],c=(1,0,0,.8))
+  plt.scatter(np.arange(num_dumbells), low_d[:,0],c=[(0,0,1,.8)])
+  plt.scatter(np.arange(num_dumbells), hi_d[:,0],c=[(1,0,0,.8)])
   plt.plot(np.arange(num_dumbells),np.ones(num_dumbells)*target_sep,c='k')
   plt.plot(np.arange(num_dumbells),np.ones(num_dumbells)*0,c='k')
   plt.yscale('symlog',basey=2)
@@ -53,7 +53,7 @@ for result in results:
                 'target_sep: ' + str(target_sep) + ', n_components: ' + 
                 str(n_components))
   #plt.savefig('arpack_sep_' + str(result['target_sep']) + '.png')
-  plt.savefig('sep_' + 
+  plt.savefig('results/sep_' + 
                str(target_sep) + '_' +
                str(n_components) + 
                '.png')

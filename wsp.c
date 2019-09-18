@@ -48,7 +48,7 @@ int main(int argc, char *argv[]){
   {
     file_name = argv[1];
     //output_file.open(file_name + ".output.txt");
-    output_file.open("wsp_out.txt");
+    output_file.open("results/wsp_out.txt");
     sep_const = atof(argv[2]);
     // read file to pts data structure
 

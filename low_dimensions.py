@@ -192,6 +192,6 @@ for filename, target_sep, n_components in product(
 #{{{
 
 print('\noutputting results')
-with open('low_dimensions.results.json','w') as f: json.dump(results,f)
+with open('results/low_dimensions.results.json','w') as f: json.dump(results,f)
 
 #}}}
