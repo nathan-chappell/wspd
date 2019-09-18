@@ -54,12 +54,12 @@ for result in results:
                 str(n_components))
   #plt.savefig('arpack_sep_' + str(result['target_sep']) + '.png')
   plt.savefig('sep_' + 
-               str(target_sep) + '.' +
+               str(target_sep) + '_' +
                str(n_components) + 
                '.png')
   plt.clf()
   #plt.show()
 
-plt.savefig('combined.png')
+#plt.savefig('combined.png')
 
 

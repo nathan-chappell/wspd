@@ -42,8 +42,8 @@ if dummy:
   filenames = [
     '../data4Domagoj/biase-prepare-log_count.csv',
     ]
-  #target_seps = [.25,.5]
-  #pca_size = [5]
+  target_seps = [1, 1.5]
+  pca_size = [5, 10]
 
 #}}}
 
@@ -138,8 +138,8 @@ for filename, target_sep, n_components in product(
 ### WSPD
 #{{{
 # run wspd on transformed data
-  os.system('./wsp ' + pca_out + ' ' + str(target_sep) 
-                     + '1>/dev/null 2>/dev/null')
+  os.system('./wsp ' + pca_out + ' ' + str(target_sep) )
+                     #+ '1>/dev/null 2>/dev/null')
 
 # read wspd result
   dumbell_indices = []

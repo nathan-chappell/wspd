@@ -52,7 +52,7 @@ int main(int argc, char *argv[]){
     sep_const = atof(argv[2]);
     // read file to pts data structure
 
-    cout << "Reading file ... " ;
+    cout << "Reading file: " << file_name << ", target sep: " << sep_const << endl;
     timer.start();
     ifstream file(file_name);
     bool first_line = true;
