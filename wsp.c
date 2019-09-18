@@ -47,8 +47,10 @@ int main(int argc, char *argv[]){
   if (argc == 3) // read from the file 
   {
     file_name = argv[1];
+    string output_file_name = string(file_name) + ".wsp_out.txt";
+    cout << "wsp: " << file_name << " --> " << output_file_name << endl;
     //output_file.open(file_name + ".output.txt");
-    output_file.open("results/wsp_out.txt");
+    output_file.open(output_file_name);
     sep_const = atof(argv[2]);
     // read file to pts data structure
 

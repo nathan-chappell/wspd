@@ -109,89 +109,100 @@ def record_result(filename, shape, target_sep, n_components,
 
 #}}}
 
-### Run Experiments
-for filename, target_sep, n_components in product(
-    filenames, target_seps, pca_size):
+def print_index_count(i,a):
+  print(a.index(i), '/', len(a))
 
-  print('processing: ', filename, ', sep:', target_sep, ', n_c:', n_components)
+### Run Experiments
+for filename in filenames:
+  print('----------------------------------------\n')
+  print('processing: ', filename, end='\t-- ')
+  print_index_count(filename,filenames)
+  print('\n----------------------------------------')
+
+  for target_sep, n_components in product(target_seps, pca_size):
+
+    print('----------------------------------------\n')
+    print('sep:', target_sep, ', n_c:', n_components)
+    print('\n----------------------------------------')
 
 ### Read Data
 #{{{
-  data = np.loadtxt(filename, delimiter=',')
-  print('shape:', data.shape, 'max pairs:', data.shape[0]*(data.shape[0]-1)/2)
+    data = np.loadtxt(filename, delimiter=',')
+    print('shape:', data.shape, 'max pairs:', data.shape[0]*(data.shape[0]-1)/2)
 #}}}
 
 ### Preprocessing
 #{{{
 # reduce dimension
-  #pca = PCA(n_components=n_components, svd_solver='arpack')
-  pca = PCA(n_components=n_components)
-  transformed_data = pca.fit_transform(data)
+    #pca = PCA(n_components=n_components, svd_solver='arpack')
+    pca = PCA(n_components=n_components)
+    transformed_data = pca.fit_transform(data)
 
 # output transformed data
-  shape = transformed_data.shape
-  header = str(shape[0]) + ' ' + str(shape[1])
-  pca_out = 'pca_out.np'
-  np.savetxt(pca_out, transformed_data, header=header)
+    shape = transformed_data.shape
+    header = str(shape[0]) + ' ' + str(shape[1])
+    pca_out = 'pca_out.np'
+    np.savetxt(pca_out, transformed_data, header=header)
 #}}}
 
 ### WSPD
 #{{{
 # run wspd on transformed data
-  os.system('./wsp ' + pca_out + ' ' + str(target_sep) )
-                     #+ '1>/dev/null 2>/dev/null')
+    os.system('./wsp ' + pca_out + ' ' + str(target_sep) )
+                       #+ '1>/dev/null 2>/dev/null')
 
 # read wspd result
-  dumbell_indices = []
-  low_d_info = []
+    dumbell_indices = []
+    low_d_info = []
 
 # dumbell_indices: s lc lr rc rr | l1 l2 ... | r1 r2 ...
-  with open('wsp_out.txt') as f:
-    for line in f:
-      i,l,r = line.split('|')
-      low_d_info.append(info_to_dict([float(x) for x in i.split()]))
-      dumbell_indices.append([[int(x) for x in l.split()],[int(y) for y in r.split()]])
+    with open('wsp_out.txt') as f:
+      for line in f:
+        i,l,r = line.split('|')
+        low_d_info.append(info_to_dict([float(x) for x in i.split()]))
+        dumbell_indices.append([[int(x) for x in l.split()],[int(y) for y in r.split()]])
 
-  print('wspd done,', len(dumbell_indices), 'pairs')
+    print('wspd done,', len(dumbell_indices), 'pairs')
 #}}}
 
 ### Analysis
 #{{{ 
-  print('getting bounding boxes')
+    print('getting bounding boxes')
 
-  boxes_lock = Lock()
-  boxes = {}
-  #with ThreadPoolExecutor(max_workers) as pool:
-    #pool.map(get_and_add_box, range(len(dumbell_indices)))
-  [get_and_add_box(i) for i in range(len(dumbell_indices))]
+    boxes_lock = Lock()
+    boxes = {}
+    #with ThreadPoolExecutor(max_workers) as pool:
+      #pool.map(get_and_add_box, range(len(dumbell_indices)))
+    [get_and_add_box(i) for i in range(len(dumbell_indices))]
 
-  print('\nboxes:', len(boxes))
-  print('\ngetting hi-d separation')
+    print('\nboxes:', len(boxes))
+    print('\ngetting hi-d separation')
 
-  hi_d_dumbells_dict = {}
-  hi_d_dumbells_lock = Lock()
-  #with ThreadPoolExecutor(max_workers) as pool:
-    #pool.map(get_and_add_hi_d_dumbell, range(len(boxes)))
-  [get_and_add_hi_d_dumbell(i) for i in range(len(boxes))]
-    
-  # move the dict to a list, then each item of the list to a dict
-  hi_d_info = []
-  for i in range(len(hi_d_dumbells_dict)): 
-    hi_d_info.append(info_to_dict(hi_d_dumbells_dict[i]))
+    hi_d_dumbells_dict = {}
+    hi_d_dumbells_lock = Lock()
+    #with ThreadPoolExecutor(max_workers) as pool:
+      #pool.map(get_and_add_hi_d_dumbell, range(len(boxes)))
+    [get_and_add_hi_d_dumbell(i) for i in range(len(boxes))]
+    print('...dun')
+      
+    # move the dict to a list, then each item of the list to a dict
+    hi_d_info = []
+    for i in range(len(hi_d_dumbells_dict)): 
+      hi_d_info.append(info_to_dict(hi_d_dumbells_dict[i]))
 
-  print('\nrecording result')
+    print('\nrecording result')
 
-  record_result(filename, data.shape, target_sep, n_components,
-                dumbell_indices, low_d_info, hi_d_info)
+    record_result(filename, data.shape, target_sep, n_components,
+                  dumbell_indices, low_d_info, hi_d_info)
 
 #}}}
-
-### End of Experiement
 
 ### Output the results
 #{{{
 
-print('\noutputting results')
-with open('results/low_dimensions.results.json','w') as f: json.dump(results,f)
+  print('\noutputting results')
+  with open('results/' + filename + '.results.json','w') as f: json.dump(results,f)
 
 #}}}
+
+### End of Experiement
